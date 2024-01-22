@@ -2,8 +2,10 @@
 
 #pragma once
 
-#include <openssl/sha.h>
-
+/* OpenSSL replaced with https://github.com/amosnier/sha-2.git */
+#include "sha-256.h"
+#define SHA256_DIGEST_LENGTH SIZE_OF_SHA_256_HASH
+#define SHA256(data, size, digest) calc_sha_256((digest), (data), (size))
 
 namespace negentropy {
 
@@ -11,7 +13,6 @@ using err = std::runtime_error;
 
 const size_t ID_SIZE = 32;
 const size_t FINGERPRINT_SIZE = 16;
-
 
 enum class Mode {
     Skip = 0,
