@@ -3,9 +3,9 @@
 #pragma once
 
 /* OpenSSL replaced with https://github.com/amosnier/sha-2.git */
-#include "sha-256.h"
-#define SHA256_DIGEST_LENGTH SIZE_OF_SHA_256_HASH
-#define SHA256(data, size, digest) calc_sha_256((digest), (data), (size))
+#include "monocypher.h"
+#define SHA256_DIGEST_LENGTH 32
+#define SHA256(data, size, hash) crypto_blake2b((hash), SHA256_DIGEST_LENGTH, (data), (size))
 
 namespace negentropy {
 
