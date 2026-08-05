@@ -40,7 +40,7 @@ struct Negentropy {
     uint64_t lastTimestampOut = 0;
 
     Negentropy(StorageImpl &storage, uint64_t frameSizeLimit = 0) : storage(storage), frameSizeLimit(frameSizeLimit) {
-        if (frameSizeLimit != 0 && frameSizeLimit < 4096) throw negentropy::err("frameSizeLimit too small");
+        if (frameSizeLimit != 0 && frameSizeLimit < 201) throw negentropy::err("frameSizeLimit too small");
     }
 
     std::string initiate() {
