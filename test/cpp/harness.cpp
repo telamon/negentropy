@@ -55,10 +55,10 @@ int main() {
             std::string q;
             if (items.size() >= 2) q = hoytech::from_hex(items[1]);
 
-            if (ne->isInitiator) {
-                std::vector<std::string> have, need;
-                auto resp = ne->reconcile(q, have, need);
+            std::vector<std::string> have, need;
+            auto resp = ne->reconcile(q, have, need);
 
+            if (ne->isInitiator) {
                 for (auto &id : have) std::cout << "have," << hoytech::to_hex(id) << "\n";
                 for (auto &id : need) std::cout << "need," << hoytech::to_hex(id) << "\n";
 
@@ -69,7 +69,8 @@ int main() {
 
                 q = *resp;
             } else {
-                q = ne->reconcile(q);
+                if (!resp) throw hoytech::error("missing responder message");
+                q = *resp;
             }
 
             if (frameSizeLimit && q.size() > frameSizeLimit) throw hoytech::error("frameSizeLimit exceeded: ", q.size(), " > ", frameSizeLimit, ": from ", (ne->isInitiator ? "initiator" : "non-initiator"));

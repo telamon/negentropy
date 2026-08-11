@@ -92,11 +92,13 @@ int main() {
 
         auto q = ne1.initiate();
 
-        std::string q2 = ne2.reconcile(q);
+        std::vector<std::string> responderHave, responderNeed;
+        auto response = ne2.reconcile(q, responderHave, responderNeed);
+        if (!response) throw hoytech::error("bad reconcile response");
 
         std::vector<std::string> have, need;
-        auto q3 = ne1.reconcile(q2, have, need);
-        if (q3 || have.size() || need.size()) throw hoytech::error("bad reconcile 1");
+        auto q3 = ne1.reconcile(*response, have, need);
+        if (q3 || have.size() || need.size() || responderHave.size() || responderNeed.size()) throw hoytech::error("bad reconcile 1");
     }
 
 
@@ -126,15 +128,20 @@ int main() {
         auto ne1 = Negentropy(vec);
         auto ne2 = Negentropy(btree);
 
-        std::vector<uint64_t> allHave, allNeed;
+        std::vector<uint64_t> allHave, allNeed, allResponderHave, allResponderNeed;
 
         std::string msg = ne1.initiate();
 
         while (true) {
-            std::string response = ne2.reconcile(msg);
+            std::vector<std::string> responderHave, responderNeed;
+            auto response = ne2.reconcile(msg, responderHave, responderNeed);
+            if (!response) throw hoytech::error("bad reconcile response");
+
+            for (const auto &id : responderHave) allResponderHave.push_back(unpackId(id));
+            for (const auto &id : responderNeed) allResponderNeed.push_back(unpackId(id));
 
             std::vector<std::string> have, need;
-            auto newMsg = ne1.reconcile(response, have, need);
+            auto newMsg = ne1.reconcile(*response, have, need);
 
             for (const auto &id : have) allHave.push_back(unpackId(id));
             for (const auto &id : need) allNeed.push_back(unpackId(id));
@@ -145,9 +152,13 @@ int main() {
 
         std::sort(allHave.begin(), allHave.end());
         std::sort(allNeed.begin(), allNeed.end());
+        std::sort(allResponderHave.begin(), allResponderHave.end());
+        std::sort(allResponderNeed.begin(), allResponderNeed.end());
 
         if (allHave != std::vector<uint64_t>({ 1044, 1838 })) throw hoytech::error("bad allHave");
         if (allNeed != std::vector<uint64_t>({ 1555, 99999 })) throw hoytech::error("bad allNeed");
+        if (allResponderHave != allNeed) throw hoytech::error("bad allResponderHave");
+        if (allResponderNeed != allHave) throw hoytech::error("bad allResponderNeed");
     }
 
 

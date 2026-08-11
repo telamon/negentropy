@@ -95,6 +95,10 @@ The constructor arguments are the large storage you want to proxy to (of type `V
 
 ## Reconciliation
 
+This C++ variant uses protocol version 2. Its terminal `IdListResponse` ranges
+allow both peers to derive local `have` and `need` sets without a separate hash
+exchange.
+
 Reconciliation works mostly the same for all storage types. First create a `Negentropy` object:
 
     auto ne = Negentropy(storage, 50'000);
@@ -120,13 +124,20 @@ On the client-side, create an initial message, and then transmit it to the serve
 
 In each loop iteration, `have` contains IDs that the client has that the server doesn't, and `need` contains IDs that the server has that the client doesn't.
 
-The server-side is similar, except it doesn't create an initial message, there are no `have`/`need` arrays, and it doesn't return an optional (servers must always reply to a request):
+The server-side is similar, except it doesn't create an initial message and its response optional is always populated because servers must reply to every request:
 
     while (true) {
         std::string msg = receiveMsgFromClient();
-        std::string response = ne.reconcile(msg);
-        respondToClient(response);
+
+        std::vector<std::string> have, need;
+        std::optional<std::string> response = ne.reconcile(msg, have, need);
+
+        // handle have/need
+
+        respondToClient(*response);
     }
+
+On both sides, `have` and `need` are relative to the local storage. Each call reports only differences that have not been returned by an earlier reconciliation round.
 
 
 

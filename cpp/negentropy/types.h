@@ -18,6 +18,7 @@ enum class Mode {
     Skip = 0,
     Fingerprint = 1,
     IdList = 2,
+    IdListResponse = 3,
 };
 
 

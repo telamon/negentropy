@@ -112,6 +112,9 @@ void testSync(bool emptySide1, bool emptySide2) {
         expectedNeed.erase(item);
     }
 
+    auto expectedResponderHave = expectedNeed;
+    auto expectedResponderNeed = expectedHave;
+
 
     vecBig.seal();
     vecSmall.seal();
@@ -125,7 +128,20 @@ void testSync(bool emptySide1, bool emptySide2) {
     std::string msg = ne1.initiate();
 
     while (true) {
-        msg = ne2.reconcile(msg);
+        std::vector<std::string> responderHave, responderNeed;
+        auto response = ne2.reconcile(msg, responderHave, responderNeed);
+        if (!response) throw hoytech::error("missing responder message");
+        msg = std::move(*response);
+
+        for (const auto &item : responderHave) {
+            if (!expectedResponderHave.contains(item)) throw hoytech::error("unexpected responder have: ", hoytech::to_hex(item));
+            expectedResponderHave.erase(item);
+        }
+
+        for (const auto &item : responderNeed) {
+            if (!expectedResponderNeed.contains(item)) throw hoytech::error("unexpected responder need: ", hoytech::to_hex(item));
+            expectedResponderNeed.erase(item);
+        }
 
         std::vector<std::string> have, need;
         auto newMsg = ne1.reconcile(msg, have, need);
@@ -146,6 +162,8 @@ void testSync(bool emptySide1, bool emptySide2) {
 
     if (expectedHave.size()) throw hoytech::error("missed have");
     if (expectedNeed.size()) throw hoytech::error("missed need");
+    if (expectedResponderHave.size()) throw hoytech::error("missed responder have");
+    if (expectedResponderNeed.size()) throw hoytech::error("missed responder need");
 }
 
 

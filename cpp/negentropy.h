@@ -22,7 +22,7 @@
 
 namespace negentropy {
 
-const uint64_t PROTOCOL_VERSION = 0x61; // Version 1
+const uint64_t PROTOCOL_VERSION = 0x62;
 
 const uint64_t MAX_U64 = std::numeric_limits<uint64_t>::max();
 using err = std::runtime_error;
@@ -59,22 +59,24 @@ struct Negentropy {
         isInitiator = true;
     }
 
-    std::string reconcile(std::string_view query) {
-        if (isInitiator) throw negentropy::err("initiator not asking for have/need IDs");
-
-        std::vector<std::string> haveIds, needIds;
-        return reconcileAux(query, haveIds, needIds);
-    }
-
     std::optional<std::string> reconcile(std::string_view query, std::vector<std::string> &haveIds, std::vector<std::string> &needIds) {
-        if (!isInitiator) throw negentropy::err("non-initiator asking for have/need IDs");
-
         auto output = reconcileAux(query, haveIds, needIds);
-        if (output.size() == 1) return std::nullopt;
+        if (isInitiator && output.size() == 1) return std::nullopt;
         return output;
     }
 
   private:
+    std::unordered_set<std::string> reportedHaveIds;
+    std::unordered_set<std::string> reportedNeedIds;
+
+    void addHaveId(const std::string &id, std::vector<std::string> &haveIds) {
+        if (reportedHaveIds.insert(id).second) haveIds.emplace_back(id);
+    }
+
+    void addNeedId(const std::string &id, std::vector<std::string> &needIds) {
+        if (reportedNeedIds.insert(id).second) needIds.emplace_back(id);
+    }
+
     std::string reconcileAux(std::string_view query, std::vector<std::string> &haveIds, std::vector<std::string> &needIds) {
         lastTimestampIn = lastTimestampOut = 0; // reset for each message
 
@@ -122,7 +124,7 @@ struct Negentropy {
                 } else {
                     skip = true;
                 }
-            } else if (mode == Mode::IdList) {
+            } else if (mode == Mode::IdList || mode == Mode::IdListResponse) {
                 auto numIds = decodeVarInt(query);
 
                 std::unordered_set<std::string> theirElems;
@@ -136,7 +138,7 @@ struct Negentropy {
 
                     if (theirElems.find(k) == theirElems.end()) {
                         // ID exists on our side, but not their side
-                        if (isInitiator) haveIds.emplace_back(k);
+                        addHaveId(k, haveIds);
                     } else {
                         // ID exists on both sides
                         theirElems.erase(k);
@@ -145,24 +147,26 @@ struct Negentropy {
                     return true;
                 });
 
-                if (isInitiator) {
-                    skip = true;
+                for (const auto &k : theirElems) {
+                    // ID exists on their side, but not our side
+                    addNeedId(k, needIds);
+                }
 
-                    for (const auto &k : theirElems) {
-                        // ID exists on their side, but not our side
-                        needIds.emplace_back(k);
-                    }
+                if (mode == Mode::IdListResponse) {
+                    skip = true;
                 } else {
                     doSkip();
 
                     std::string responseIds;
                     uint64_t numResponseIds = 0;
                     Bound endBound = currBound;
+                    bool truncated = false;
 
                     storage.iterate(lower, upper, [&](const Item &item, size_t index){
                         if (exceededFrameSizeLimit(fullOutput.size() + responseIds.size())) {
                             endBound = Bound(item);
                             upper = index; // shrink upper so that remaining range gets correct fingerprint
+                            truncated = true;
                             return false;
                         }
 
@@ -172,12 +176,20 @@ struct Negentropy {
                     });
 
                     o += encodeBound(endBound);
-                    o += encodeVarInt(uint64_t(Mode::IdList));
+                    o += encodeVarInt(uint64_t(Mode::IdListResponse));
                     o += encodeVarInt(numResponseIds);
                     o += responseIds;
 
                     fullOutput += o;
                     o.clear();
+
+                    if (truncated) {
+                        auto remainingFingerprint = storage.fingerprint(upper, storageSize);
+                        fullOutput += encodeBound(Bound(MAX_U64));
+                        fullOutput += encodeVarInt(uint64_t(Mode::Fingerprint));
+                        fullOutput += remainingFingerprint.sv();
+                        break;
+                    }
                 }
             } else {
                 throw negentropy::err("unexpected mode");
